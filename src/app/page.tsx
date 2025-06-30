@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ModelSelector from '@/components/ModelSelector';
+import MessageList from '@/components/MessageList';
 
 interface Message {
   id: string;
@@ -16,37 +17,76 @@ export default function Home() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState('llamascout');
+  const [messageCounter, setMessageCounter] = useState(0);
 
+  const generateMessageId = () => {
+    setMessageCounter(prev => prev + 1);
+    return `${Date.now()}-${messageCounter}`;
+  };
 
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
 
-    setMessages(prev => [...prev, { id: Date.now().toString(), content: inputValue.trim(), isUser: true }]);
+    const userMessage = inputValue.trim();
+    setMessages(prev => [...prev, { id: generateMessageId(), content: userMessage, isUser: true }]);
     setInputValue('');
     setIsLoading(true);
+
+    const aiMessageId = generateMessageId();
+    setMessages(prev => [...prev, { id: aiMessageId, content: '', isUser: false }]);
 
     try {
       const response = await fetch('https://text.pollinations.ai/openai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: inputValue.trim() }],
-          model: selectedModel
+          messages: [{ role: 'user', content: userMessage }],
+          model: selectedModel,
+          stream: true
         })
       });
-      const data = await response.json();
-      
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        content: data.choices[0].message.content,
-        isUser: false,
-      }]);
+
+      if (!response.body) throw new Error('No response body');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim());
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              if (content) {
+                accumulatedContent += content;
+                setMessages(prev => prev.map(msg => 
+                  msg.id === aiMessageId 
+                    ? { ...msg, content: accumulatedContent }
+                    : msg
+                ));
+              }
+            } catch (e) {
+              // Skip invalid JSON chunks
+            }
+          }
+        }
+      }
     } catch (error) {
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        content: 'Sorry, I encountered an error. Please try again.',
-        isUser: false,
-      }]);
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { ...msg, content: 'Sorry, I encountered an error. Please try again.' }
+          : msg
+      ));
     }
     setIsLoading(false);
   };
@@ -66,34 +106,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        <div className="max-w-4xl mx-auto space-y-4">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl rounded-2xl px-4 py-3 ${
-                message.isUser
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600'
-              }`}>
-                <p className="text-sm leading-relaxed">{message.content}</p>
-              </div>
-            </div>
-          ))}
-          
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-white dark:bg-slate-700 rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-600">
-                <div className="flex space-x-1">
-                  {[0, 0.1, 0.2].map((delay, i) => (
-                    <div key={i} className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: `${delay}s` }} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
-      </div>
+      <MessageList messages={messages} isLoading={isLoading} />
 
       <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-6 py-4">
         <div className="max-w-4xl mx-auto flex space-x-4">
@@ -111,7 +124,12 @@ export default function Home() {
             disabled={!inputValue.trim() || isLoading}
             className="bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white px-4 py-3 rounded-xl font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
-            {isLoading ? '...' : (
+            {isLoading ? (
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
               </svg>
