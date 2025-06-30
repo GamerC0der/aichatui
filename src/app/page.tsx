@@ -17,11 +17,9 @@ export default function Home() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState('llamascout');
-  const [messageCounter, setMessageCounter] = useState(0);
 
   const generateMessageId = () => {
-    setMessageCounter(prev => prev + 1);
-    return `${Date.now()}-${messageCounter}`;
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   };
 
   const handleSend = async () => {
@@ -76,7 +74,80 @@ export default function Home() {
                 ));
               }
             } catch (e) {
-              // Skip invalid JSON chunks
+              // skip stuff
+            }
+          }
+        }
+      }
+    } catch (error) {
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { ...msg, content: 'Sorry, I encountered an error. Please try again.' }
+          : msg
+      ));
+    }
+    setIsLoading(false);
+  };
+
+  const handleRegenerate = async (messageId: string) => {
+    if (isLoading) return;
+
+    const messageIndex = messages.findIndex(msg => msg.id === messageId);
+    if (messageIndex === -1 || messages[messageIndex].isUser) return;
+
+    const userMessageIndex = messageIndex - 1;
+    if (userMessageIndex < 0 || !messages[userMessageIndex].isUser) return;
+
+    const userMessage = messages[userMessageIndex].content;
+    
+    setMessages(prev => prev.filter((_, index) => index !== messageIndex));
+    setIsLoading(true);
+
+    const aiMessageId = generateMessageId();
+    setMessages(prev => [...prev, { id: aiMessageId, content: '', isUser: false }]);
+
+    try {
+      const response = await fetch('https://text.pollinations.ai/openai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: userMessage }],
+          model: selectedModel,
+          stream: true
+        })
+      });
+
+      if (!response.body) throw new Error('No response body');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim());
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              if (content) {
+                accumulatedContent += content;
+                setMessages(prev => prev.map(msg => 
+                  msg.id === aiMessageId 
+                    ? { ...msg, content: accumulatedContent }
+                    : msg
+                ));
+              }
+            } catch (e) {
+              // skip stuff
             }
           }
         }
@@ -106,7 +177,7 @@ export default function Home() {
         </div>
       </div>
 
-      <MessageList messages={messages} isLoading={isLoading} />
+      <MessageList messages={messages} isLoading={isLoading} onRegenerate={handleRegenerate} />
 
       <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-6 py-4">
         <div className="max-w-4xl mx-auto flex space-x-4">
