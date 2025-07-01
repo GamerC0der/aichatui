@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import '@uiw/react-md-editor/markdown-editor.css';
 
 :root {
   --background: #ffffff;
@@ -11,4 +12,43 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Custom markdown styles */
+.w-md-editor {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.w-md-editor-content {
+  background: transparent !important;
+}
+
+.w-md-editor-preview {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.w-md-editor-preview .wmde-markdown {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+/* Dark mode support */
+[data-color-mode*='dark'] .w-md-editor {
+  background: transparent !important;
+}
+
+[data-color-mode*='dark'] .w-md-editor-content {
+  background: transparent !important;
+}
+
+[data-color-mode*='dark'] .w-md-editor-preview {
+  background: transparent !important;
+}
+
+[data-color-mode*='dark'] .w-md-editor-preview .wmde-markdown {
+  background: transparent !important;
+  color: inherit !important;
 }

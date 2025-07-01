@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import ModelSelector from '@/components/ModelSelector';
 import MessageList from '@/components/MessageList';
+import ChatHistory from '@/components/ChatHistory';
 
 interface Message {
   id: string;
@@ -21,6 +22,8 @@ export default function Home() {
   const [systemPrompt, setSystemPrompt] = useState('You are a helpful AI assistant.');
   const [temperature, setTemperature] = useState(0.7);
   const [advancedParams, setAdvancedParams] = useState('{}');
+  const [currentSessionId, setCurrentSessionId] = useState<string>('default');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const savedSystemPrompt = localStorage.getItem('systemPrompt');
@@ -50,8 +53,87 @@ export default function Home() {
     localStorage.setItem('advancedParams', advancedParams);
   }, [advancedParams]);
 
+  // Save current session to localStorage
+  useEffect(() => {
+    if (messages.length > 1) { // Don't save the initial greeting
+      const firstUserMessage = messages.find(msg => msg.isUser);
+      const sessionData = {
+        messages,
+        timestamp: Date.now(),
+        title: firstUserMessage?.content ? (firstUserMessage.content.slice(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '')) : 'New Chat'
+      };
+      localStorage.setItem(`chat_${currentSessionId}`, JSON.stringify(sessionData));
+      
+      // Update sessions list
+      const existingSessions = JSON.parse(localStorage.getItem('chatSessions') || '[]');
+      const sessionIndex = existingSessions.findIndex((s: any) => s.id === currentSessionId);
+      const sessionInfo = {
+        id: currentSessionId,
+        title: sessionData.title,
+        timestamp: sessionData.timestamp,
+        messageCount: messages.length
+      };
+      
+      if (sessionIndex >= 0) {
+        existingSessions[sessionIndex] = sessionInfo;
+      } else {
+        existingSessions.unshift(sessionInfo);
+      }
+      
+      localStorage.setItem('chatSessions', JSON.stringify(existingSessions));
+    }
+  }, [messages, currentSessionId]);
+
   const generateMessageId = () => {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  };
+
+  const generateSessionId = () => {
+    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  };
+
+  const loadSession = (sessionId: string) => {
+    try {
+      const sessionData = localStorage.getItem(`chat_${sessionId}`);
+      if (sessionData) {
+        const parsed = JSON.parse(sessionData);
+        setMessages(parsed.messages);
+        setCurrentSessionId(sessionId);
+      }
+    } catch (error) {
+      console.error('Error loading session:', error);
+    }
+  };
+
+  const startNewChat = () => {
+    setMessages([{ id: '1', content: 'Hello! I\'m your AI assistant. How can I assist you today?', isUser: false }]);
+    setCurrentSessionId(generateSessionId());
+  };
+
+  const clearAllChats = () => {
+    try {
+      // Get all session IDs
+      const sessions = JSON.parse(localStorage.getItem('chatSessions') || '[]');
+      
+      // Remove all session data
+      sessions.forEach((session: any) => {
+        localStorage.removeItem(`chat_${session.id}`);
+      });
+      
+      // Clear sessions list
+      localStorage.removeItem('chatSessions');
+      
+      // Start new chat
+      startNewChat();
+      
+      // Trigger refresh of chat history
+      setRefreshTrigger(prev => prev + 1);
+      
+      // Close settings
+      setIsSettingsOpen(false);
+    } catch (error) {
+      console.error('Error clearing chats:', error);
+    }
   };
 
   const handleSend = async () => {
@@ -218,7 +300,14 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-            <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 relative">
+      <ChatHistory 
+        onLoadSession={loadSession}
+        currentSessionId={currentSessionId}
+        onNewChat={startNewChat}
+        refreshTrigger={refreshTrigger}
+      />
+      
+      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 relative">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Chat</h1>
@@ -393,6 +482,24 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  Chat History
+                </label>
+                <button
+                  onClick={clearAllChats}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                >
+                  <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Clear All Chats
+                </button>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  This will permanently delete all your chat history and cannot be undone.
+                </p>
               </div>
             </div>
           </div>

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import MDEditor from '@uiw/react-md-editor';
 
 interface Message {
   id: string;
@@ -45,60 +44,77 @@ export default function MessageList({ messages, isLoading, onRegenerate }: Messa
                 {message.isUser ? (
                   <p className="text-sm leading-relaxed">{message.content}</p>
                 ) : (
-                  <div className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm]}
+                  <div className="text-sm leading-relaxed">
+                    <MDEditor.Markdown 
+                      source={message.content}
+                      style={{ 
+                        backgroundColor: 'transparent',
+                        color: 'inherit',
+                        fontSize: '0.875rem',
+                        lineHeight: '1.5'
+                      }}
                       components={{
-                        code({ node, inline, className, children, ...props }: any) {
+                        code: ({ children, className, ...props }) => {
+                          const isInline = !className?.includes('language-');
                           return (
                             <code
-                              className={`${className} ${inline ? 'bg-slate-100 dark:bg-slate-600 px-1 py-0.5 rounded text-xs' : 'block bg-slate-100 dark:bg-slate-600 p-3 rounded-lg text-xs overflow-x-auto'}`}
+                              className={`${className} ${isInline ? 'bg-slate-100 dark:bg-slate-600 px-1 py-0.5 rounded text-xs' : 'block bg-slate-100 dark:bg-slate-600 p-3 rounded-lg text-xs overflow-x-auto'}`}
                               {...props}
                             >
                               {children}
                             </code>
                           );
                         },
-                        pre({ children }) {
-                          return <pre className="bg-slate-100 dark:bg-slate-600 p-3 rounded-lg text-xs overflow-x-auto">{children}</pre>;
-                        },
-                        p({ children }) {
-                          return <p className="mb-2 last:mb-0">{children}</p>;
-                        },
-                        ul({ children }) {
-                          return <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>;
-                        },
-                        ol({ children }) {
-                          return <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>;
-                        },
-                        li({ children }) {
-                          return <li className="text-sm">{children}</li>;
-                        },
-                        blockquote({ children }) {
-                          return <blockquote className="border-l-4 border-slate-300 dark:border-slate-500 pl-4 italic text-slate-600 dark:text-slate-400">{children}</blockquote>;
-                        },
-                        h1({ children }) {
-                          return <h1 className="text-lg font-bold mb-2">{children}</h1>;
-                        },
-                        h2({ children }) {
-                          return <h2 className="text-base font-bold mb-2">{children}</h2>;
-                        },
-                        h3({ children }) {
-                          return <h3 className="text-sm font-bold mb-1">{children}</h3>;
-                        },
-                        table({ children }) {
-                          return <div className="overflow-x-auto"><table className="min-w-full border-collapse border border-slate-300 dark:border-slate-600">{children}</table></div>;
-                        },
-                        th({ children }) {
-                          return <th className="border border-slate-300 dark:border-slate-600 px-2 py-1 bg-slate-50 dark:bg-slate-600 text-left text-xs font-medium">{children}</th>;
-                        },
-                        td({ children }) {
-                          return <td className="border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs">{children}</td>;
-                        }
+                        pre: ({ children }) => (
+                          <pre className="bg-slate-100 dark:bg-slate-600 p-3 rounded-lg text-xs overflow-x-auto">
+                            {children}
+                          </pre>
+                        ),
+                        p: ({ children }) => (
+                          <p className="mb-2 last:mb-0">{children}</p>
+                        ),
+                        ul: ({ children }) => (
+                          <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
+                        ),
+                        li: ({ children }) => (
+                          <li className="text-sm">{children}</li>
+                        ),
+                        blockquote: ({ children }) => (
+                          <blockquote className="border-l-4 border-slate-300 dark:border-slate-500 pl-4 italic text-slate-600 dark:text-slate-400">
+                            {children}
+                          </blockquote>
+                        ),
+                        h1: ({ children }) => (
+                          <h1 className="text-lg font-bold mb-2">{children}</h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 className="text-base font-bold mb-2">{children}</h2>
+                        ),
+                        h3: ({ children }) => (
+                          <h3 className="text-sm font-bold mb-1">{children}</h3>
+                        ),
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full border-collapse border border-slate-300 dark:border-slate-600">
+                              {children}
+                            </table>
+                          </div>
+                        ),
+                        th: ({ children }) => (
+                          <th className="border border-slate-300 dark:border-slate-600 px-2 py-1 bg-slate-50 dark:bg-slate-600 text-left text-xs font-medium">
+                            {children}
+                          </th>
+                        ),
+                        td: ({ children }) => (
+                          <td className="border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs">
+                            {children}
+                          </td>
+                        )
                       }}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
+                    />
                   </div>
                 )}
               </div>
