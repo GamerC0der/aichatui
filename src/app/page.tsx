@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ModelSelector from '@/components/ModelSelector';
 import MessageList from '@/components/MessageList';
 
@@ -19,9 +19,39 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState('llamascout');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('You are a helpful AI assistant.');
+  const [temperature, setTemperature] = useState(0.7);
+  const [advancedParams, setAdvancedParams] = useState('{}');
+
+  useEffect(() => {
+    const savedSystemPrompt = localStorage.getItem('systemPrompt');
+    const savedTemperature = localStorage.getItem('temperature');
+    const savedAdvancedParams = localStorage.getItem('advancedParams');
+    
+    if (savedSystemPrompt) {
+      setSystemPrompt(savedSystemPrompt);
+    }
+    if (savedTemperature) {
+      setTemperature(parseFloat(savedTemperature));
+    }
+    if (savedAdvancedParams) {
+      setAdvancedParams(savedAdvancedParams);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('systemPrompt', systemPrompt);
+  }, [systemPrompt]);
+
+  useEffect(() => {
+    localStorage.setItem('temperature', temperature.toString());
+  }, [temperature]);
+
+  useEffect(() => {
+    localStorage.setItem('advancedParams', advancedParams);
+  }, [advancedParams]);
 
   const generateMessageId = () => {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
   };
 
   const handleSend = async () => {
@@ -45,13 +75,15 @@ export default function Home() {
     ];
 
     try {
-      const response = await fetch('https://text.pollinations.ai/openai', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: chatHistory,
           model: selectedModel,
-          stream: true
+          stream: true,
+          temperature: temperature,
+          ...JSON.parse(advancedParams)
         })
       });
 
@@ -75,7 +107,7 @@ export default function Home() {
             
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content || '';
+              const content = parsed.content || '';
               if (content) {
                 accumulatedContent += content;
                 setMessages(prev => prev.map(msg => 
@@ -85,7 +117,7 @@ export default function Home() {
                 ));
               }
             } catch (e) {
-              // skip stuff
+              // skip stuff here
             }
           }
         }
@@ -127,13 +159,15 @@ export default function Home() {
     ];
 
     try {
-      const response = await fetch('https://text.pollinations.ai/openai', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: chatHistory,
           model: selectedModel,
-          stream: true
+          stream: true,
+          temperature: temperature,
+          ...JSON.parse(advancedParams)
         })
       });
 
@@ -157,7 +191,7 @@ export default function Home() {
             
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content || '';
+              const content = parsed.content || '';
               if (content) {
                 accumulatedContent += content;
                 setMessages(prev => prev.map(msg => 
@@ -167,7 +201,7 @@ export default function Home() {
                 ));
               }
             } catch (e) {
-              // skip stuff
+              // skip stuff here
             }
           }
         }
@@ -175,7 +209,7 @@ export default function Home() {
     } catch (error) {
       setMessages(prev => prev.map(msg => 
         msg.id === aiMessageId 
-          ? { ...msg, content: 'Sorry, I encountered an error. Please try again.' }
+          ? { ...msg, content: 'Sorry, I encountered an error. Please try again later.' }
           : msg
       ));
     }
@@ -184,30 +218,29 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
+            <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 relative">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Chat</h1>
             <p className="text-slate-600 dark:text-slate-400">Your intelligent AI assistant</p>
           </div>
-          <div className="flex items-center gap-4">
-            <ModelSelector
-              value={selectedModel}
-              onChange={setSelectedModel}
-            />
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
-              title="Settings"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-          </div>
+          <ModelSelector
+            value={selectedModel}
+            onChange={setSelectedModel}
+          />
         </div>
-      </div>
+        
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="absolute top-4 right-6 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+          title="Settings"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+      </div>/
 
       <MessageList messages={messages} isLoading={isLoading} onRegenerate={handleRegenerate} />
 
@@ -282,6 +315,84 @@ export default function Home() {
                   placeholder="Enter system prompt..."
                   className="w-full h-32 resize-none border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
                 />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Temperature: {temperature}
+                </label>
+                <div className="relative">
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value={temperature}
+                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                    className="w-full h-3 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    style={{
+                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(temperature / 2) * 100}%, #e2e8f0 ${(temperature / 2) * 100}%, #e2e8f0 100%)`
+                    }}
+                  />
+                  <div className="absolute -top-6 left-0 right-0 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <span>0</span>
+                    <span>1</span>
+                    <span>2</span>
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  <span className="flex items-center">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
+                    Focused
+                  </span>
+                  <span className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                    Balanced
+                  </span>
+                  <span className="flex items-center">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full mr-1"></div>
+                    Creative
+                  </span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Advanced Parameters (JSON)
+                </label>
+                <textarea
+                  value={advancedParams}
+                  onChange={(e) => setAdvancedParams(e.target.value)}
+                  placeholder='{"max_tokens": 1000, "top_p": 0.9}'
+                  className="w-full h-24 resize-none border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 font-mono text-sm"
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Add any additional parameters as JSON. These will be merged with the request.
+                </p>
+                
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Examples:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setAdvancedParams('{"max_tokens": 1000, "top_p": 0.9}')}
+                      className="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      Balanced
+                    </button>
+                    <button
+                      onClick={() => setAdvancedParams('{"max_tokens": 2000, "top_p": 0.7, "frequency_penalty": 0.1}')}
+                      className="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      Creative
+                    </button>
+                    <button
+                      onClick={() => setAdvancedParams('{"max_tokens": 500, "top_p": 0.1, "presence_penalty": 0.2}')}
+                      className="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      Focused
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
