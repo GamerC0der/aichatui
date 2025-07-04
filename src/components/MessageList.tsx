@@ -1,193 +1,457 @@
-import { useState } from 'react';
-import MDEditor from '@uiw/react-md-editor';
+'use client';
 
-interface Message {
+import { useState } from 'react';
+
+type Message = {
   id: string;
   content: string;
   isUser: boolean;
-  isLoading?: boolean;
-}
+  timestamp: Date;
+  isStreaming?: boolean;
+};
 
 interface MessageListProps {
   messages: Message[];
-  isLoading: boolean;
-  onRegenerate?: (messageId: string) => void;
+  isLoading?: boolean;
+  isTyping?: boolean;
+  onRegenerate?: () => void;
 }
 
-export default function MessageList({ messages, isLoading, onRegenerate }: MessageListProps) {
-  const [copiedMessages, setCopiedMessages] = useState<Set<string>>(new Set());
+export function MessageList({ messages, isLoading, isTyping }: MessageListProps) {
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  const handleCopy = async (messageId: string, content: string) => {
-    await navigator.clipboard.writeText(content);
-    setCopiedMessages(prev => new Set(prev).add(messageId));
-    setTimeout(() => {
-      setCopiedMessages(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(messageId);
-        return newSet;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      });
-    }, 750);
+  const isImageUrl = (url: string) => {
+    return url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) || url.includes('pollinations.ai');
+  };
+
+  const appendNoLogo = (url: string) => {
+    if (url.includes('pollinations.ai')) {
+      if (url.includes('?')) {
+        if (!url.includes('nologo=')) {
+          return url + '&nologo=true';
+        }
+      } else {
+        return url + '?nologo=true';
+      }
+    }
+    return url;
+  };
+
+  const formatMessage = (content: string) => {
+    if (isImageUrl(content)) {
+      const imgUrl = appendNoLogo(content);
+      return (
+        <div style={{ marginTop: '0.5rem' }}>
+          <img
+            src={imgUrl}
+            alt="Generated image"
+            style={{
+              maxWidth: '300px',
+              maxHeight: '200px',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              border: '1px solid #e0e0e0',
+              transition: 'all 0.2s ease',
+              objectFit: 'cover'
+            }}
+            onClick={() => setSelectedImage(imgUrl)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.02)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          />
+          <div style={{
+            fontSize: '0.75rem',
+            color: '#a0a0a0',
+            marginTop: '0.5rem',
+            fontStyle: 'italic'
+          }}>
+            Click to view full size
+          </div>
+        </div>
+      );
+    }
+    
+    if (content.includes('/image')) {
+      const parts = content.split('/image');
+      return (
+        <div>
+          {parts.map((part, index) => (
+            <span key={index}>
+              {part}
+              {index < parts.length - 1 && (
+                <span style={{
+                  display: 'inline-block',
+                  backgroundColor: '#f0f0f0',
+                  color: '#0f0f0f',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  border: '1px solid #d0d0d0',
+                  margin: '0 0.25rem',
+                  fontFamily: 'monospace'
+                }}>
+                  /image
+                </span>
+              )}
+            </span>
+          ))}
+          <div style={{
+            marginTop: '1rem',
+            padding: '1rem',
+            backgroundColor: '#f8f9fa',
+            border: '1px solid #e9ecef',
+            borderRadius: '0.5rem',
+            borderLeft: '4px solid #007bff'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '0.5rem'
+            }}>
+              <span style={{
+                fontSize: '1.25rem',
+                color: '#007bff'
+              }}>
+                🎨
+              </span>
+              <span style={{
+                fontWeight: '600',
+                color: '#0f0f0f',
+                fontSize: '0.875rem'
+              }}>
+                Image Generation
+              </span>
+            </div>
+            <p style={{
+              color: '#6c757d',
+              fontSize: '0.875rem',
+              margin: '0 0 0.75rem 0',
+              lineHeight: '1.4'
+            }}>
+              To generate an image, use the <code style={{
+                backgroundColor: '#e9ecef',
+                padding: '0.125rem 0.25rem',
+                borderRadius: '0.25rem',
+                fontSize: '0.75rem',
+                color: '#0f0f0f'
+              }}>/image</code> command followed by your description.
+            </p>
+            <div style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #dee2e6',
+              borderRadius: '0.375rem',
+              padding: '0.75rem',
+              fontSize: '0.875rem',
+              fontFamily: 'monospace',
+              color: '#0f0f0f'
+            }}>
+              /image a beautiful sunset over mountains
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    return content;
   };
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-4">
-      <div className="max-w-4xl mx-auto space-y-4">
-        {messages.map((message) => (
-          <div key={message.id} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-            <div className={`relative group ${message.isUser ? '' : 'flex items-start gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl p-1 -m-1 transition-colors duration-200'}`}>
-              <div className={`max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl rounded-2xl px-4 py-3 ${
-                message.isUser
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600'
-              }`}>
-                {message.isUser ? (
-                  <p className="text-sm leading-relaxed">{message.content}</p>
-                ) : (
-                  <div className="text-sm leading-relaxed">
-                    <MDEditor.Markdown 
-                      source={message.content}
-                      style={{ 
-                        backgroundColor: 'transparent',
-                        color: 'inherit',
-                        fontSize: '0.875rem',
-                        lineHeight: '1.5'
-                      }}
-                      components={{
-                        code: ({ children, className, ...props }) => {
-                          const isInline = !className?.includes('language-');
-                          return (
-                            <code
-                              className={`${className} ${isInline ? 'bg-slate-100 dark:bg-slate-600 px-1 py-0.5 rounded text-xs' : 'block bg-slate-100 dark:bg-slate-600 p-3 rounded-lg text-xs overflow-x-auto'}`}
-                              {...props}
-                            >
-                              {children}
-                            </code>
-                          );
-                        },
-                        pre: ({ children }) => (
-                          <pre className="bg-slate-100 dark:bg-slate-600 p-3 rounded-lg text-xs overflow-x-auto">
-                            {children}
-                          </pre>
-                        ),
-                        p: ({ children }) => (
-                          <p className="mb-2 last:mb-0">{children}</p>
-                        ),
-                        ul: ({ children }) => (
-                          <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
-                        ),
-                        li: ({ children }) => (
-                          <li className="text-sm">{children}</li>
-                        ),
-                        blockquote: ({ children }) => (
-                          <blockquote className="border-l-4 border-slate-300 dark:border-slate-500 pl-4 italic text-slate-600 dark:text-slate-400">
-                            {children}
-                          </blockquote>
-                        ),
-                        h1: ({ children }) => (
-                          <h1 className="text-lg font-bold mb-2">{children}</h1>
-                        ),
-                        h2: ({ children }) => (
-                          <h2 className="text-base font-bold mb-2">{children}</h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3 className="text-sm font-bold mb-1">{children}</h3>
-                        ),
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full border-collapse border border-slate-300 dark:border-slate-600">
-                              {children}
-                            </table>
-                          </div>
-                        ),
-                        th: ({ children }) => (
-                          <th className="border border-slate-300 dark:border-slate-600 px-2 py-1 bg-slate-50 dark:bg-slate-600 text-left text-xs font-medium">
-                            {children}
-                          </th>
-                        ),
-                        td: ({ children }) => (
-                          <td className="border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs">
-                            {children}
-                          </td>
-                        )
-                      }}
-                    />
-                  </div>
-                )}
+    <div style={{
+      flex: 1,
+      overflowY: 'auto',
+      padding: '1rem 0',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '1.5rem'
+    }}>
+      {messages.map((message) => (
+        <div
+          key={message.id}
+          style={{
+            display: 'flex',
+            justifyContent: message.isUser ? 'flex-end' : 'flex-start',
+            alignItems: 'flex-start',
+            gap: '0.75rem'
+          }}
+        >
+          {!message.isUser && (
+            <div style={{
+              width: '32px',
+              height: '32px',
+              backgroundColor: '#ffffff',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              color: '#0f0f0f',
+              flexShrink: 0
+            }}>
+              AI
+            </div>
+          )}
+          
+          <div style={{
+            maxWidth: '70%',
+            backgroundColor: message.isUser ? '#ffffff' : '#f5f5f5',
+            color: message.isUser ? '#0f0f0f' : '#0f0f0f',
+            padding: '1rem 1.25rem',
+            borderRadius: '1rem',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
+            border: message.isUser ? 'none' : '1px solid #e0e0e0',
+            position: 'relative',
+            wordWrap: 'break-word',
+            whiteSpace: 'pre-wrap'
+          }}>
+            {message.isStreaming && (
+              <div style={{
+                position: 'absolute',
+                right: '0.5rem',
+                top: '0.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem'
+              }}>
+                <div style={{
+                  width: '2px',
+                  height: '2px',
+                  backgroundColor: message.isUser ? '#0f0f0f' : '#ffffff',
+                  borderRadius: '50%',
+                  animation: 'pulse 1.5s infinite'
+                }} />
+                <div style={{
+                  width: '2px',
+                  height: '2px',
+                  backgroundColor: message.isUser ? '#0f0f0f' : '#ffffff',
+                  borderRadius: '50%',
+                  animation: 'pulse 1.5s infinite 0.2s'
+                }} />
+                <div style={{
+                  width: '2px',
+                  height: '2px',
+                  backgroundColor: message.isUser ? '#0f0f0f' : '#ffffff',
+                  borderRadius: '50%',
+                  animation: 'pulse 1.5s infinite 0.4s'
+                }} />
               </div>
-              
-              {!message.isUser && onRegenerate && message.id !== '1' && (
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => onRegenerate(message.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:scale-110 transform"
-                    title="Regenerate response"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleCopy(message.id, message.content)}
-                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:scale-110 transform"
-                    title="Copy response"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      {copiedMessages.has(message.id) ? (
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      ) : (
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      )}
-                    </svg>
-                  </button>
-                </div>
-              )}
+            )}
+            
+            {formatMessage(message.content)}
+            
+            <div style={{
+              fontSize: '0.75rem',
+              color: message.isUser ? 'rgba(15, 15, 15, 0.7)' : '#a0a0a0',
+              marginTop: '0.5rem',
+              textAlign: 'right'
+            }}>
+              {message.timestamp.toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
             </div>
           </div>
-        ))}
+          
+          {message.isUser && (
+            <div style={{
+              width: '32px',
+              height: '32px',
+              backgroundColor: '#ffffff',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              color: '#0f0f0f',
+              flexShrink: 0
+            }}>
+              You
+            </div>
+          )}
+        </div>
+      ))}
+      
+      {isTyping && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start',
+          gap: '0.75rem'
+        }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            backgroundColor: '#ffffff',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            color: '#0f0f0f',
+            flexShrink: 0
+          }}>
+            AI
+          </div>
+          <div style={{
+            backgroundColor: '#f5f5f5',
+            color: '#0f0f0f',
+            padding: '1rem 1.25rem',
+            borderRadius: '1rem',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
+            border: '1px solid #e0e0e0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <div style={{
+              width: '2px',
+              height: '2px',
+              backgroundColor: '#ffffff',
+              borderRadius: '50%',
+              animation: 'pulse 1.5s infinite'
+            }} />
+            <div style={{
+              width: '2px',
+              height: '2px',
+              backgroundColor: '#ffffff',
+              borderRadius: '50%',
+              animation: 'pulse 1.5s infinite 0.2s'
+            }} />
+            <div style={{
+              width: '2px',
+              height: '2px',
+              backgroundColor: '#ffffff',
+              borderRadius: '50%',
+              animation: 'pulse 1.5s infinite 0.4s'
+            }} />
+            <span style={{ fontSize: '0.875rem', color: '#a0a0a0' }}>
+              AI is typing...
+            </span>
+          </div>
+        </div>
+      )}
+      
+      {selectedImage && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem',
+            backdropFilter: 'blur(8px)',
+            animation: 'fadeIn 0.3s ease-out',
+            overflow: 'auto',
+          }} 
+          onClick={() => setSelectedImage(null)}
+        >
+          <div style={{
+            position: 'relative',
+            maxWidth: '100vw',
+            maxHeight: '100vh',
+            animation: 'scaleIn 0.3s ease-out',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <img
+              src={appendNoLogo(selectedImage || '')}
+              alt="Full size image"
+              style={{
+                maxWidth: '100vw',
+                maxHeight: '100vh',
+                borderRadius: '1rem',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)',
+                border: '2px solid rgba(255, 255, 255, 0.1)',
+                objectFit: 'contain',
+                display: 'block',
+                margin: 'auto',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setSelectedImage(null)}
+              style={{
+                position: 'absolute',
+                top: '-1rem',
+                right: '-1rem',
+                background: 'rgba(255, 255, 255, 0.95)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '3rem',
+                height: '3rem',
+                cursor: 'pointer',
+                fontSize: '1.25rem',
+                color: '#0f0f0f',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+                transition: 'all 0.2s ease',
+                backdropFilter: 'blur(10px)',
+                fontWeight: '600'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1)';
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.95)';
+              }}
+            >
+              ×
+            </button>
+            <div style={{
+              position: 'absolute',
+              bottom: '-3rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: '0.875rem',
+              textAlign: 'center',
+              pointerEvents: 'none'
+            }}>
+              Click outside to close
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
         
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white dark:bg-slate-700 rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-600">
-              <div className="flex space-x-1">
-                {[0, 0.1, 0.2].map((delay, i) => (
-                  <div key={i} className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: `${delay}s` }} />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes scaleIn {
+          from { 
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to { 
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+      `}</style>
     </div>
   );
 } 

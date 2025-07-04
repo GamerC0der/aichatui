@@ -13,20 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Chat",
-  description: "Intelligent AI conversation interface with multiple models",
+  title: "AI Chat UI",
+  description: "A modern AI chat interface",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-background font-sans antialiased">
         {children}
       </body>
     </html>
